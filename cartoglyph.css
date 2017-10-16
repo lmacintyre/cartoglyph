@@ -1,0 +1,57 @@
+body
+{
+	margin: 0; 
+	background: url("background.png");
+}
+
+div
+{
+	margin-left: auto;
+	margin-right: auto;
+}
+
+#wrapper
+{
+	display: flex;
+	background: -moz-linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.1));
+	height: 100vh;
+	justify-content: center;
+	align-items: center;
+}
+
+#main-table
+{
+	border-spacing: 0;
+}
+
+#main-table td
+{
+	padding: 0;
+	vertical-align: top;
+}
+
+#viewport
+{
+	margin-left: auto;
+	margin-right: auto;
+	display: inline-block;
+
+	border: 8px solid #bac16c;
+	background-color: #000000;
+}
+
+#generate-button
+{
+	display: inline-block;
+	background: url("generate.png") no-repeat;
+	border: 8px solid #bac16c;
+	border-left: none;
+	width: 128px;
+	height: 32px;
+}
+
+#generate-button:active
+{
+	background: url("generate-clicked.png") no-repeat;
+}
+
