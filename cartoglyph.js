@@ -16,14 +16,33 @@ context.fillStyle = 'rgb(55, 55, 255)';
 context.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
 class Tile {
-	constructor(x, y, height) {
+	constructor(x, y, height, map) {
 		this.x = x;
 		this.y = y;
 
 		this.height = height;
-		this.structure = "";
+		this.occupant = null;
 		this.waterLevel = 0;
+
+		this.world = map;
 	}
+
+	getAdjacentTiles() {
+
+		let result = [];
+
+		for (let row = this.x - 1; row < this.x + 2; row++) {
+			for (let col = this.y - 1; col < this.y + 2; col++) {
+				if (row == this.x && col == this.y) continue;
+				let t = this.world.getTileAt(row, col);
+				if (t != null)
+					result.push(t);
+			}
+		}
+
+		return result;
+	}
+
 }
 
 class TileMap {
@@ -34,13 +53,175 @@ class TileMap {
 		for (let i=0; i<heightMap.length; i++) {
 			let tileRow = [];
 			for (let j=0; j<heightMap.length; j++) {
-				tileRow.push(new Tile(i, j, heightMap[i][j]));
+				tileRow.push(new Tile(i, j, heightMap[i][j], this));
 			}
 
 			tiles.push(tileRow);
 		}
 
 		this.tiles = tiles;
+	}
+
+	getTileAt(row, col) {
+		if (row < 0 || row > this.tiles.length
+		 || col < 0 || col > this.tiles.length)
+			return null;
+
+		else return this.tiles[row][col];
+	}
+
+	tick() {
+		/* get all entities to update */	
+		let updateQueue = [];
+		
+		this.tiles.forEach(function(row) {
+			row.forEach(function(cell) {
+				if (cell.occupant != null)
+					updateQueue.push(cell.occupant);
+			});
+		});
+
+		/* update each entity */
+		updateQueue.forEach(function(entity) {
+			entity.tick();	
+		});
+
+
+		this.draw();
+	}
+
+	draw() {
+		let map = this.heightMap;
+	
+		for (let i = 0; i < map.length; i++) {
+			for (let j = 0; j < map.length; j++) {
+				// Generate color
+	
+				let r = 0, g = 0, b = 0;
+	
+				if (this.tiles[i][j].occupant != null) {
+					let oc = this.tiles[i][j].occupant;
+					r = oc.r;
+					g = oc.g;
+					b = oc.b;
+				} else if (this.tiles[i][j].waterLevel > 0) {
+					r = 125 * (map[i][j] + 0.5)/2;
+					g = 125 * (map[i][j] + 0.5)/2;
+					b = 255 * (map[i][j] + 0.5)/2;
+				} else if (map[i][j] < sandLevel) {
+					r = 155 + 45 * (map[i][j] / 0.42);
+					g = 155 + 45 * (map[i][j] / 0.42);
+					b = 125;
+				} else if (map[i][j] < treeLevel) {
+					r = 55 * map[i][j];
+					g = 255 * (map[i][j] + 0.1);
+					b = 75;
+				} else if (map[i][j] < glacierLevel) {
+					r = 195 * map[i][j];
+					g = 195 * map[i][j];
+					b = 195 * map[i][j];
+				} else {
+					r = 235 * map[i][j];
+					g = 235 * map[i][j];
+					b = 255 * map[i][j];
+				}
+	
+				context.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+			
+				// Draw tile
+				context.fillRect(i*tilesize, j*tilesize, tilesize, tilesize);
+			}
+		}
+	}
+
+	init() {
+		let anchor = this;
+		setInterval(function() {anchor.tick()}, 1000);
+	}
+}
+
+class Entity {
+	constructor(tile, type) {
+		this.location = tile;
+		tile.occupant = this;
+		this.type = type;
+	}
+
+	tick() {}
+
+	setTile(tile) {
+		tile.occupant = this;
+	}
+}
+
+class Structure extends Entity {
+	constructor(tile, type) {
+		super(tile, type);
+	}
+}
+
+class House extends Structure {
+	constructor(tile) {
+		super(tile, 'house');
+	}
+
+	init() {
+		this.r = 55;
+		this.g = 55;
+		this.b = 55;
+	}
+}
+
+class Organism extends Entity {
+	constructor(tile, type) {
+		super(tile, type);
+	}
+
+	move(newTile) {
+		this.location.occupant = null;
+		this.location = newTile;
+		this.location.occupant = this;
+	}
+
+	reproduce(newTile) {}
+}
+
+class Human extends Organism {
+	constructor(tile) {
+		super(tile, 'human');
+	}
+
+	init() {
+		this.r = 255;
+		this.g = 0;
+		this.b = 0;
+	}
+
+	tick() {
+		/* Get adjacent cells */
+		let adjacentTiles = this.location.getAdjacentTiles();
+
+		/* move into one */
+		let destination =
+			adjacentTiles[Math.floor(Math.random()*adjacentTiles.length)];
+
+		this.location.occupant = null;
+		this.location = destination;
+		this.location.occupant = this;
+	}
+
+	reproduce(newTile) {
+		newTile.occupant = new Human(newTile);
+	}
+}
+
+class Tree extends Organism {
+	constructor(tile) {
+		super(tile, 'tree');
+	}
+
+	reproduce(newTile) {
+		newTile.occupant = new Tree(newTile);
 	}
 }
 
@@ -53,59 +234,12 @@ for (let i=0; i<MAP_SIZE; i++) {
 	}
 }
 
-let drawMap = function(tileMap) {
-	
-	let map = tileMap.heightMap;
-
-	for (let i=0; i<MAP_SIZE; i++) {
-		for (let j=0; j<MAP_SIZE; j++) {
-			// Generate color
-
-			let r = 0, g = 0, b = 0;
-
-			if (tileMap.tiles[i][j].structure != "") {
-				r = 75;
-				g = 60;
-				b = 25;
-			} else if (tileMap.tiles[i][j].waterLevel > 0) {
-				r = 125 * (map[i][j] + 0.5)/2;
-				g = 125 * (map[i][j] + 0.5)/2;
-				b = 255 * (map[i][j] + 0.5)/2;
-			} else if (map[i][j] < sandLevel) {
-				r = 155 + 45 * (map[i][j] / 0.42);
-				g = 155 + 45 * (map[i][j] / 0.42);
-				b = 125;
-			} else if (map[i][j] < treeLevel) {
-				r = 55 * map[i][j];
-				g = 255 * (map[i][j] + 0.1);
-				b = 75;
-			} else if (map[i][j] < glacierLevel) {
-				r = 195 * map[i][j];
-				g = 195 * map[i][j];
-				b = 195 * map[i][j];
-			} else {
-				r = 235 * map[i][j];
-				g = 235 * map[i][j];
-				b = 255 * map[i][j];
-			}
-
-			context.fillStyle = 'rgb(' + r + ', ' + g + ', ' + b + ')';
-			
-			// Draw tile
-			context.fillRect(i*tilesize, j*tilesize, tilesize, tilesize);
-		}
-	}
-}
 
 let seedMap = function(map, featureSize) {
 
 	for (let i = 0; i < map.length; i += featureSize)
 		for (let j = 0; j < map.length; j += featureSize)
 			map[i][j] = Math.random();
-}
-
-let islandSeed = function(map) {
-	
 }
 
 let squareStep = function(map, i, j, featureSize) {
@@ -177,7 +311,6 @@ let squareDiamond = function(map, featureSize) {
 	
 	let halfstep;
 
-	console.log("\tbeginning while...");
 	while (stepSize > 1) {
 		halfstep = stepSize / 2;
 
@@ -194,11 +327,8 @@ let squareDiamond = function(map, featureSize) {
 			}
 		}
 
-		console.log("\t\treducing stepSize...");
 		stepSize = stepSize/2;
 	}
-
-	console.log("\treturning...");
 }
 
 let generateRiver = function(tileMap, i, j)
@@ -242,8 +372,6 @@ let generateRiver = function(tileMap, i, j)
 			tileMap.tiles[river[i][0]][river[i][1]].waterLevel = 1;
 		}
 	}
-
-	console.log(river.length);
 }
 
 let generateSettlement = function(tileMap) {
@@ -266,11 +394,23 @@ let generateSettlement = function(tileMap) {
 		for (let j = min_y; j < max_y; j++)
 			if (isInMap(tileMap.tiles, i, j) && !isWater(tileMap, i, j))
 				settlementTiles.push(tileMap.tiles[i][j]);
-	
-	for (let i=0; i<settlementTiles.length/4; i++)
-		settlementTiles[
-			Math.floor(Math.random()*settlementTiles.length)
-		].structure = "house";
+
+	/* place a house */
+	let i = Math.floor(Math.random()*settlementTiles.length);
+	let t = settlementTiles.splice(i, 1)[0];
+	t.occupant = new House(t);
+	t.occupant.init();
+
+	/* place two humans */
+	i = Math.floor(Math.random()*settlementTiles.length);
+	t = settlementTiles.splice(i, 1)[0];
+	t.occupant = new Human(t);
+	t.occupant.init();
+
+	i = Math.floor(Math.random()*settlementTiles.length);
+	t = settlementTiles.splice(i, 1)[0];
+	t.occupant = new Human(t);
+	t.occupant.init();
 }
 
 let restrictHeight = function(points, low, high)
@@ -369,7 +509,6 @@ let generateRivers = function(map, n) {
 
 let fillOceans = function(map, seaLevel) {
 	let heightMap = map.heightMap;
-	console.log(map.tiles);
 	for (let i = 0; i < map.tiles.length; i++) {
 		for (let j = 0; j < map.tiles.length; j++) {
 			if (heightMap[i][j] < seaLevel)
@@ -378,12 +517,7 @@ let fillOceans = function(map, seaLevel) {
 	}
 }
 
-let generate = function() {
-	console.log("generating heightmap");
-	squareDiamond(tileMap, 128);
-
-	let TM = new TileMap(tileMap);
-
+let generate = function(TM) {
 	console.log("filling oceans...");
 	fillOceans(TM, seaLevel);
 	
@@ -392,11 +526,15 @@ let generate = function() {
 	
 	console.log("generating settlements...");
 	generateSettlement(TM); 
-	generateSettlement(TM); 
-	generateSettlement(TM); 
 
 	console.log("drawing map...");
-	drawMap(TM);
+	TM.draw();
+
 }
 
-generate();
+console.log("generating heightmap");
+squareDiamond(tileMap, 128);
+
+let TM = new TileMap(tileMap);
+generate(TM);
+TM.init();
